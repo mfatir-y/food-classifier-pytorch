@@ -3,6 +3,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
+
 class Food101Subset(Dataset):
     def __init__(self, data_path, classes, split="train", transform=None):
         # Store the provided image transformation parameter
