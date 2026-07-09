@@ -116,16 +116,12 @@ def train(
 
     model = model.to(device)
 
-    # CrossEntropyLoss combines LogSoftmax + NLLLoss in one step.
-    # It expects raw scores (logits) from the model, not softmax outputs.
     criterion = nn.CrossEntropyLoss()
 
-    # Adam adapts the learning rate per parameter automatically.
-    # Much more forgiving than plain SGD for a first project.
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # ReduceLROnPlateau watches val accuracy and divides LR by 2 (factor=0.5)
-    # if it hasn't improved for 3 epochs. Helps escape plateaus late in training.
+    # if it hasn't improved for 3 epochs.
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="max", factor=0.5, patience=3
     )
@@ -133,8 +129,6 @@ def train(
     # History dict stores metrics every epoch for plotting afterward
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
-    # Early stopping state — stop training if val accuracy hasn't improved
-    # for PATIENCE epochs. Saves time and prevents overfitting.
     best_val_acc      = 0.0
     epochs_no_improve = 0
 
@@ -163,7 +157,6 @@ def train(
 
         # Save model if this is the best val accuracy so far.
         # Saving state_dict (weights only) rather than the whole model
-        # is the standard — it's smaller and not tied to your class definition.
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             epochs_no_improve = 0
