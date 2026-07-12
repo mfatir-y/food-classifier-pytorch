@@ -37,22 +37,20 @@ class Food101Subset(Dataset):
         return image, label
 
 
-def get_dataloaders(data_path, classes, batch_size=32):
+def get_dataloaders(data_path, classes, batch_size=32, image_size=128):
     train_transforms = transforms.Compose([
-        transforms.RandomResizedCrop(128),
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.15, contrast=0.1, saturation=0.1),
+        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1),
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
     val_transforms = transforms.Compose([
-        transforms.Resize(144),
-        transforms.CenterCrop(128),
+        transforms.Resize(int(image_size * 1.125)),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
     train_dataset = Food101Subset(data_path, classes, split="train", transform=train_transforms)

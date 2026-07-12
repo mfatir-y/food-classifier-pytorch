@@ -112,8 +112,52 @@ class DeepCNN(FoodClassifierBase):
         return x
 
 
-# TODO: class ResNetCNN(FoodClassifierBase)
-    
+class ResNetTransfer(FoodClassifierBase):
+    """
+    ResNet-50 with pretrained ImageNet weights, fine-tuned for food classification.
+    The backbone is frozen — only the classifier head is trained.
+    """
+    def __init__(self, num_classes: int = 10, dropout: float = 0.4):
+        super().__init__()
+
+        import torchvision.models as models
+
+        resnet = models.resnet50(weights="IMAGENET1K_V2")
+
+        # Freeze all backbone layers — they already know edges, textures, shapes
+        for param in resnet.parameters():
+            param.requires_grad = False
+
+        # Keep everything except the final classification layer
+        # resnet.fc is the original Linear(2048 -> 1000) for ImageNet's 1000 classes
+        self.backbone = nn.Sequential(*list(resnet.children())[:-1])  # outputs [B, 2048, 1, 1]
+
+        # Replace with your own head for 10 food classes
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(2048, 512),
+            nn.ReLU(inplace=True),
+            nn.Linear(512, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.backbone(x)       # [B, 2048, 1, 1]
+        x = self.classifier(x)     # [B, num_classes]
+        return x
+
+    def unfreeze_backbone(self, layers: int = 1):
+        """
+        Unfreeze the last N layer groups of the backbone for fine-tuning.
+        Call this after initial training converges, then retrain with a lower LR (1e-4).
+        layers=1 unfreezes layer4, layers=2 unfreezes layer3+4, etc.
+        """
+        children = list(self.backbone.children())
+        for child in children[-layers:]:
+            for param in child.parameters():
+                param.requires_grad = True
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print(f"Unfroze {layers} layer(s) — trainable parameters: {trainable:,}")    
 
 def get_model(name: str, num_classes: int = 10) -> FoodClassifierBase:
     """
@@ -123,10 +167,12 @@ def get_model(name: str, num_classes: int = 10) -> FoodClassifierBase:
     Usage:
         model = get_model("basic")
         model = get_model("deep")
+        model = get_model("resnet")
     """
     models = {
         "basic": BasicCNN,
         "deep":  DeepCNN,
+        "resnet": ResNetTransfer,
     }
     if name not in models:
         raise ValueError(f"Unknown model '{name}'. Choose from: {list(models.keys())}")
