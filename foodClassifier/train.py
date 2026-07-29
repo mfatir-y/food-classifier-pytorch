@@ -105,7 +105,7 @@ def train(
     lr=1e-3,
     patience=5,
     save_path="best_model.pt",
-    model_name="basic",
+    model_name=None,
     device=None,
 ):
     if model is None or train_loader is None or val_loader is None:
