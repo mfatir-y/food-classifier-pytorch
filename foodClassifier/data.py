@@ -4,6 +4,15 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 
+def get_validation_transforms(image_size):
+    return transforms.Compose([
+        transforms.Resize(int(image_size * 1.125)),
+        transforms.CenterCrop(image_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+
 class Food101Subset(Dataset):
     def __init__(self, data_path, classes, split="train", transform=None):
         # Store the provided image transformation parameter
@@ -46,12 +55,7 @@ def get_dataloaders(data_path, classes, batch_size=32, image_size=128):
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    val_transforms = transforms.Compose([
-        transforms.Resize(int(image_size * 1.125)),
-        transforms.CenterCrop(image_size),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
+    val_transforms = get_validation_transforms(image_size)
 
     train_dataset = Food101Subset(data_path, classes, split="train", transform=train_transforms)
     val_dataset   = Food101Subset(data_path, classes, split="test",  transform=val_transforms)

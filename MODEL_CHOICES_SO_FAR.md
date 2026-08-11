@@ -8,6 +8,7 @@ It is meant to support later writing about the project by showing what was added
 - A Basic CNN baseline.
 - A deeper CNN variant.
 - A ResNet transfer-learning option.
+- A prediction script that loads a saved checkpoint and returns top-k class probabilities.
 - Training code that handles device placement, history tracking, checkpoint saving, and plotting.
 - Notebook cells that test each model and load saved `.pt` weights for later comparison.
 
@@ -124,6 +125,51 @@ Why it was added:
 - Makes it easy to compare runs later.
 - Lets the notebook reload the best version without retraining.
 
+### Prediction script
+
+What was added:
+- A standalone `predict.py` module for inference.
+
+How it was added:
+- Loads the ResNet model once at module import time.
+- Restores weights from `best_resnet.pt`.
+- Applies deterministic image preprocessing with resize, center crop, tensor conversion, and ImageNet normalization.
+- Accepts either a file path or a PIL image.
+- Converts model logits to probabilities and returns the top-k results.
+- Includes a CLI entry point for terminal use.
+
+Why it was added:
+- Creates a reusable inference path outside the notebook.
+- Makes it easier to connect the model to FastAPI later.
+- Ensures the input pipeline matches the trained ResNet settings.
+
+### Inference timing and model loading
+
+What was added:
+- Module-level model loading in `predict.py`.
+
+How it was added:
+- The checkpoint is loaded once when the module is imported.
+- Inference then reuses the same model object for every prediction.
+
+Why it was added:
+- Avoids reloading weights on every call.
+- Makes CLI and API inference faster.
+
+### Top-k prediction output
+
+What was added:
+- Top-k class predictions with confidence values.
+
+How it was added:
+- Uses `softmax()` to convert logits into probabilities.
+- Uses `topk()` to choose the highest-probability classes.
+- Maps class indices back to food labels.
+
+Why it was added:
+- Gives readable results for terminal output and later API responses.
+- Makes the prediction output easy to compare across images.
+
 ## Older Facts Worth Preserving
 
 These are smaller implementation details that are still worth remembering when describing the project later.
@@ -188,6 +234,7 @@ Why it was added:
 - A deep model check with the same style of output.
 - A ResNet section using a larger input size.
 - A later cell that loads a saved `.pt` checkpoint and restores the model weights.
+- A prediction-oriented workflow that can reuse the saved model for later inference work.
 
 ## Good Short Summary For Later Writing
 
