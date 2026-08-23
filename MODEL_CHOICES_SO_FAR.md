@@ -143,6 +143,31 @@ Why it was added:
 - Makes it easier to connect the model to FastAPI later.
 - Ensures the input pipeline matches the trained ResNet settings.
 
+### FastAPI inference app
+
+What was added:
+- A FastAPI app in `foodClassifier/main.py` for serving predictions to a frontend.
+
+How it was added:
+- The API uses the existing ResNet transfer model and `best_resnet.pt` checkpoint.
+- It keeps the existing ten-class label order used by training and prediction.
+- It uses 224x224 inputs and the shared validation preprocessing function.
+- The model is loaded once during the FastAPI lifespan and reused for requests.
+- The `/predict` endpoint accepts an image, validates it, and returns top-5 predictions.
+- The model path is built from the file location so Uvicorn can be launched from the project root.
+- The endpoint accepts JPEG, PNG, and WebP uploads and rejects files larger than 10 MB.
+- Uploaded images are converted to RGB before preprocessing so grayscale and transparent images have three channels.
+- The response includes one `top` result plus the full `predictions` list for frontend confidence bars.
+
+Why it was added:
+- Provides an HTTP interface without changing the model architecture or trained weights.
+- Reusing the existing model, labels, checkpoint, and validation transform keeps API results consistent with notebook evaluation and CLI prediction.
+- Loading the model during application startup avoids loading the checkpoint for every request.
+- Lifespan startup and shutdown provide a clear place to manage the shared model resource.
+- CORS is enabled for local frontend development so a separate frontend origin can call the API.
+- `async` file reading lets the server handle other requests while waiting for upload data.
+- Early file-type and size checks avoid unnecessary image decoding and inference work.
+
 ### Inference timing and model loading
 
 What was added:
