@@ -3,8 +3,8 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-from data import get_validation_transforms
-from model import get_model
+from foodClassifier.data import get_validation_transforms
+from foodClassifier.model import get_model
 
 CLASSES = [
     "apple_pie", "baklava", "caesar_salad", "eggs_benedict",
@@ -28,10 +28,15 @@ def load_model():
     model.eval()
     return model
 
-_model = load_model()
 
+def predict(image_input, model=None, top_k: int = 5):
+    """
+    model: if None, loads from disk (CLI usage)
+           if provided, uses that model (API usage — model already loaded)
+    """
+    if model is None:
+        model = load_model()   # use the module-level loaded model for CLI
 
-def predict(image_input, top_k: int = 5):
     if isinstance(image_input, str):
         image = Image.open(image_input).convert("RGB")
     elif isinstance(image_input, Image.Image):
@@ -42,7 +47,7 @@ def predict(image_input, top_k: int = 5):
     tensor = preprocess(image).unsqueeze(0).to(DEVICE)
 
     with torch.no_grad():
-        logits = _model(tensor)
+        logits = model(tensor)
         probs  = F.softmax(logits, dim=1)[0]
 
     top_probs, top_indices = probs.topk(min(top_k, len(CLASSES)))
