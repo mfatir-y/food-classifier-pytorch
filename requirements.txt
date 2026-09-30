@@ -1,18 +1,17 @@
-# Core ML
-# torch/torchvision here resolve to CPU wheels from PyPI. For a CUDA build, install
-# from PyTorch's own index first (see https://pytorch.org/get-started/locally/), e.g.:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-torch==2.12.1
-torchvision==0.27.1
-numpy==2.4.4
-pillow==12.2.0
-
-# Training/evaluation (notebook)
-matplotlib==3.11.0
-scikit-learn==1.9.0
-jupyterlab==4.6.0
-
-# Backend (FastAPI)
-fastapi==0.141.1
-uvicorn[standard]==0.52.4
-python-multipart==0.0.32
+# Deploy/runtime dependencies only — what foodClassifier/main.py actually needs to
+# serve predictions. For local development (notebook/training work, running the API
+# locally), use requirements-dev.txt instead.
+#
+# torch/torchvision are pinned to their CPU-only wheels explicitly. Plain PyPI wheels
+# for Linux are CUDA-enabled by default and pull in several GB of nvidia-* CUDA
+# runtime packages (cublas, cudnn, triton, ...) even on a machine with no GPU — fine
+# for local training, but it bloats a deploy image and can OOM a small instance for
+# no benefit, since inference here runs on CPU anyway. If you do want a GPU build for
+# local use, see https://pytorch.org/get-started/locally/.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+fastapi
+uvicorn[standard]
+python-multipart
+pillow
