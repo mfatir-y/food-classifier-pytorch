@@ -1,0 +1,18 @@
+# Core ML
+# torch/torchvision here resolve to CPU wheels from PyPI. For a CUDA build, install
+# from PyTorch's own index first (see https://pytorch.org/get-started/locally/), e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+torch==2.12.1
+torchvision==0.27.1
+numpy==2.4.4
+pillow==12.2.0
+
+# Training/evaluation (notebook)
+matplotlib==3.11.0
+scikit-learn==1.9.0
+jupyterlab==4.6.0
+
+# Backend (FastAPI)
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32

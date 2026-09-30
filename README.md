@@ -101,8 +101,10 @@ Download the [Food-101 dataset](https://www.kaggle.com/datasets/dansbecker/food-
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install torch torchvision fastapi uvicorn[standard] python-multipart pillow matplotlib scikit-learn numpy
+pip install -r requirements.txt
 ```
+
+For a CUDA build of PyTorch instead of the default CPU wheels, see the note at the top of `requirements.txt` (or [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/)).
 
 ### 3. Train (or skip this if you already have checkpoints)
 
@@ -137,6 +139,5 @@ Not yet done:
 ## Known gaps
 
 - `MODEL_CHOICES_SO_FAR.md` mentions a `foodClassifier/config.json` used by the notebook to configure `train()` calls — this file doesn't currently exist in the repo.
-- There's no `requirements.txt`/`pyproject.toml` yet; see the dependency list under [Getting started](#2-python-environment).
 
 See `MODEL_CHOICES_SO_FAR.md` for a more detailed running log of what was added, how, and why for each model/training/serving decision.
