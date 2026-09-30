@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { classifyImage, type PredictResponse } from "@/lib/api";
 import { validateImageFile } from "@/lib/validation";
+import { addHistoryEntry, clearHistory, createThumbnail, useHistory } from "@/lib/history";
 import { UploadZone } from "./components/UploadZone";
 import { ResultsPanel } from "./components/ResultsPanel";
+import { HistoryPanel } from "./components/HistoryPanel";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -16,6 +18,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   // Bumped on reset to remount UploadZone, clearing its internal file input.
   const [uploadKey, setUploadKey] = useState(0);
+  const history = useHistory();
 
   function reset() {
     setSelectedFile(null);
@@ -51,6 +54,22 @@ export default function Home() {
       const prediction = await classifyImage(selectedFile);
       setResult(prediction);
       setStatus("success");
+
+      // Thumbnail generation is best-effort — a failure here shouldn't hide the prediction.
+      let thumbnail = "";
+      try {
+        thumbnail = await createThumbnail(selectedFile);
+      } catch {
+        // Keep thumbnail as "" — HistoryPanel falls back to a placeholder.
+      }
+
+      addHistoryEntry({
+        id: crypto.randomUUID(),
+        label: prediction.top.label,
+        confidence: prediction.top.confidence,
+        thumbnail,
+        timestamp: Date.now(),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Prediction failed.");
       setStatus("error");
@@ -100,6 +119,8 @@ export default function Home() {
             Try another image
           </button>
         )}
+
+        <HistoryPanel entries={history} onClear={clearHistory} />
       </main>
     </div>
   );
