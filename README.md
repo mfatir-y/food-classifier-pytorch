@@ -1,117 +1,142 @@
-# Food Classifier Project Plan (Food-101 + CNN + Web App)
+# Food Classifier — Food-101 CNN + FastAPI + Next.js
 
-A learning-focused project plan: build a CNN from scratch in PyTorch, serve it with FastAPI, and consume it from a Next.js/React frontend with live camera support.
+A learning-focused project: train CNNs from scratch and via transfer learning in PyTorch on a 10-class subset of Food-101, serve the best model with a FastAPI backend, and classify food photos through a Next.js web app — upload or drag-and-drop an image, hit Classify, and get the top-5 predicted classes with confidence scores. Recent predictions are kept in a local history, stored in the browser.
 
----
+## Classes
 
-## Phase 0 — Setup
+The project trains on a 10-class subset of Food-101 (not all 101 classes, to keep training/debugging fast):
 
-1. Download the Food-101 dataset (zip) and extract it locally.
-2. Inspect the folder structure — find `images/`, `meta/classes.txt`, `meta/train.txt`, `meta/test.txt`.
-3. Decide on scope: start with a subset of 10-20 classes instead of all 101. This makes training/debugging much faster while you learn.
-4. Set up your Python environment (PyTorch, torchvision, matplotlib, etc.) — locally or in a Kaggle Notebook with GPU.
+`apple_pie` · `baklava` · `caesar_salad` · `eggs_benedict` · `frozen_yogurt` · `grilled_salmon` · `nachos` · `pizza` · `tacos` · `waffles`
 
----
+## Project structure
 
-## Phase 1 — Data Pipeline
+```
+foodClassifier/          Python package — models, data, training, inference, API
+  model.py                 BasicCNN, DeepCNN, ResNetTransfer + get_model() factory
+  data.py                  Food101Subset dataset, train/val transforms, get_dataloaders()
+  train.py                 Training/validation loop, checkpointing, history plots
+  predict.py               Standalone inference (CLI + importable predict())
+  main.py                  FastAPI app — /health and /predict
 
-1. Write a script to filter the dataset down to your chosen classes, splitting into `train/` and `test/` folders (or use `meta/train.txt` and `meta/test.txt` directly).
-2. Explore the data: open a few images, check sizes, check class balance.
-3. Define `torchvision.transforms` for training (resize, random crop, flip, normalize) and validation (resize, center crop, normalize).
-4. Load the data using `ImageFolder` + `DataLoader`. Check that a batch loads correctly and visualize a few images with their labels.
+food-cnn.ipynb            Working notebook: data → model checks → training → evaluation
 
----
+food-classifier-web/      Next.js (App Router) + TypeScript frontend
+  app/page.tsx               Page state/orchestration
+  app/components/            UploadZone, ResultsPanel, HistoryPanel
+  lib/                       api.ts (backend client), validation.ts, format.ts, history.ts
 
-## Phase 2 — Build the CNN
+best_basic.pt              Saved checkpoints (gitignored — trained locally, not in the repo)
+best_deep.pt
+best_resnet.pt
 
-1. Sketch your architecture on paper first: how many conv blocks, how channels grow (e.g. 32 → 64 → 128 → 256), where pooling happens.
-2. Implement the model as an `nn.Module`:
-   - Convolution + ReLU + BatchNorm + MaxPool blocks for feature extraction
-   - Adaptive pooling + fully connected layers for classification
-3. Do a "shape check" — pass a dummy batch through the model and print tensor shapes after each block to make sure dimensions make sense.
-4. Print the total parameter count to get a feel for model size.
+test_images/               Sample images for manual testing
+```
 
----
+## Models
 
-## Phase 3 — Training Loop
+All three share a common interface (`FoodClassifierBase`) so the same training loop, evaluation code, and inference path work for any of them, selected by name via `get_model(name)`.
 
-1. Choose a loss function (`CrossEntropyLoss`) and optimizer (`Adam` is a good default).
-2. Write the training loop: forward pass → loss → backward pass → optimizer step.
-3. Write a validation loop: run on the test set without gradients, compute accuracy.
-4. Add logging — print loss/accuracy per epoch, or use a list to track history for plotting later.
-5. Train for a small number of epochs first (2-3) just to confirm the loop runs end-to-end without errors.
-6. Once stable, train longer and watch for overfitting (train accuracy rising, val accuracy plateauing/falling).
+| Model | Architecture | Why |
+|---|---|---|
+| **BasicCNN** | 4× Conv‑BatchNorm‑ReLU‑MaxPool blocks (3→32→64→128→256 channels) + adaptive avg pool + small FC head | A simple from-scratch baseline, chosen to make the effect of each layer easy to reason about before adding complexity. |
+| **DeepCNN** | Adds a 5th block (256→512 channels) and a wider FC head (512→1024→classes), with higher dropout | Tests whether more from-scratch capacity actually helps on this dataset, or just overfits. |
+| **ResNetTransfer** | Pretrained ResNet-50 (ImageNet weights), backbone **frozen**, with a custom FC head replacing `resnet.fc`; `unfreeze_backbone(layers=N)` is available for later fine-tuning | Reuses image features that are already useful instead of relearning them from only 10 classes' worth of data — the strongest of the three, and the one actually served by the API. |
 
----
+Each model saves its best checkpoint separately (`best_basic.pt`, `best_deep.pt`, `best_resnet.pt`) via `state_dict()`, so runs can be compared and reloaded without retraining. (`best_model.pt` is a leftover from an early run before per-model save paths were wired up — not part of the active set.)
 
-## Phase 4 — Evaluate & Improve
+Training uses `CrossEntropyLoss` + `Adam`, with `ReduceLROnPlateau` halving the learning rate after 3 stagnant epochs on validation accuracy, and early stopping once accuracy plateaus for `patience` epochs. BasicCNN/DeepCNN train at 128×128; ResNetTransfer trains at 224×224 (matching its ImageNet pretraining) and is what `predict.py`/`main.py` load for inference.
 
-1. Plot training/validation loss and accuracy curves.
-2. Look at a confusion matrix — which classes get confused with each other?
-3. Try improvements one at a time:
-   - Add more conv layers or increase channel sizes
-   - Add data augmentation (rotation, color jitter)
-   - Adjust learning rate or add a learning rate scheduler
-   - Try increasing image resolution
-4. Save your best model's weights (`torch.save`).
+## Backend (FastAPI)
 
----
+`foodClassifier/main.py` loads `best_resnet.pt` once at startup (via the app's `lifespan`) and serves:
 
-## Phase 5 — Inference Script
+- `GET /health` — status, active device (`cuda`/`cpu`), and the class list
+- `POST /predict` — accepts an uploaded image (`multipart/form-data`), returns the top prediction plus the full top-5 list with confidences
 
-1. Write a standalone script that:
-   - Loads your saved model
-   - Loads a single image from disk
-   - Applies the same preprocessing as validation
-   - Runs a forward pass and applies `softmax` to get probabilities
-   - Prints the top-5 predicted classes with confidence percentages
-2. Test this on a few images you didn't train on (download random food photos from the web).
+Upload validation happens before decoding: only `image/jpeg`, `image/png`, and `image/webp` are accepted, and files over 10MB are rejected. Images are converted to RGB so grayscale/transparent uploads don't break the 3-channel input. CORS is fully open (`*`) since this is local-dev only for now.
 
----
+Inference (`foodClassifier/predict.py`) applies the same preprocessing used for validation during training (`get_validation_transforms()` in `data.py`), so results stay consistent with what training measured. It also has a CLI entry point:
 
-## Phase 6 — Backend API (FastAPI)
+```bash
+python -m foodClassifier.predict path/to/image.jpg
+```
 
-1. Set up a basic FastAPI app with a health-check endpoint.
-2. Add a `/predict` endpoint that:
-   - Accepts an uploaded image file
-   - Runs your Phase 5 inference logic
-   - Returns JSON with top-5 predictions and confidence scores
-3. Load the model once at startup (not per-request) for performance.
-4. Test the endpoint locally using a tool like the FastAPI docs UI (`/docs`) or `curl`/Postman with a sample image.
-5. Handle edge cases: invalid file types, oversized images, no file provided.
+## Frontend (Next.js)
 
----
+A single-page app (`food-classifier-web/`) built with Next.js 16 (App Router), React 19, TypeScript, and Tailwind CSS:
 
-## Phase 7 — Frontend (Next.js + React)
+- **Upload** — click-to-browse or drag-and-drop, with client-side validation mirroring the backend's type/size rules
+- **Classify button** — explicit submit (not auto-classify), with a loading state
+- **Results** — the top prediction prominently, plus a top-5 confidence bar list
+- **History** — the 10 most recent predictions (small thumbnail, label, confidence), persisted in the browser's `localStorage` via a `useSyncExternalStore`-backed store, with a Clear option
 
-1. Scaffold a Next.js app with a simple page.
-2. Build an image upload component (drag-and-drop or file picker) that sends the image to your `/predict` endpoint and displays results.
-3. Build a webcam component:
-   - Access the camera with `getUserMedia`
-   - Display the live video feed
-   - Add a "capture" button that grabs a frame and converts it to a blob
-   - Send the captured blob to `/predict`
-4. Display results nicely:
-   - Show the top prediction prominently
-   - Show a list/bar chart of top-5 classes with confidence percentages
-   - Add a loading state while waiting for the API response
+Component layout:
+```
+app/page.tsx              State + orchestration, plus small inline UI (classify button, error banner)
+app/components/
+  UploadZone.tsx             Drag/drop + file input + image preview
+  ResultsPanel.tsx           Top prediction card + top-5 bars
+  HistoryPanel.tsx           Recent predictions strip
+lib/
+  api.ts                      classifyImage(), checkHealth() — talks to the FastAPI backend
+  validation.ts                Shared file-type/size validation
+  format.ts                    Label formatting (apple_pie -> Apple Pie)
+  history.ts                   localStorage-backed prediction history store
+```
 
----
+## Getting started
 
-## Phase 8 — Polish & Deploy (Optional)
+### Prerequisites
 
-1. Add basic styling (Tailwind or your preferred approach).
-2. Handle errors gracefully in the UI (camera permission denied, API errors, etc.).
-3. Deploy the backend (e.g. Render/Railway) and frontend (e.g. Vercel).
-4. Update frontend API URL to point to the deployed backend.
-5. Test the full flow end-to-end on a deployed URL, including camera access (requires HTTPS).
+- Python 3.11+ with `pip`
+- Node.js 20.9+ (required by Next.js 16) and `npm`
+- A CUDA-capable GPU is optional but strongly recommended for training (inference runs fine on CPU)
 
----
+### 1. Get the dataset
 
-## Stretch Goals (If You Want to Go Further)
+Download the [Food-101 dataset](https://www.kaggle.com/datasets/dansbecker/food-101) and extract it so you have a folder containing `images/` and `meta/` (with `classes.txt`, `train.txt`, `test.txt`).
 
-- Compare your from-scratch CNN against a transfer-learning model (ResNet) on the same classes.
-- Add a "training mode" page that shows live loss/accuracy graphs while training runs (via WebSocket).
-- Visualize what the CNN "sees" using feature map visualizations or Grad-CAM.
-- Expand to all 101 classes once your pipeline is solid.
-- Add a history/log of past predictions stored client-side.
+### 2. Python environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+pip install torch torchvision fastapi uvicorn[standard] python-multipart pillow matplotlib scikit-learn numpy
+```
+
+### 3. Train (or skip this if you already have checkpoints)
+
+Open `food-cnn.ipynb`, set `DATA_PATH` in the first cell to your extracted Food-101 folder, and run the cells top to bottom. Each model's best weights are saved automatically (`best_basic.pt`, `best_deep.pt`, `best_resnet.pt`) as training runs.
+
+### 4. Run the backend
+
+```bash
+uvicorn foodClassifier.main:app --reload
+```
+Runs at `http://127.0.0.1:8000` by default; requires `best_resnet.pt` to be present at the project root.
+
+### 5. Run the frontend
+
+```bash
+cd food-classifier-web
+npm install
+npm run dev
+```
+Runs at `http://localhost:3000`. It talks to the backend at `NEXT_PUBLIC_API_URL` (defaults to `http://127.0.0.1:8000` — set it in `.env.local` if your backend runs elsewhere).
+
+## Status & roadmap
+
+Done: data pipeline, all three models, training/evaluation, standalone inference (CLI), FastAPI backend, and a working frontend (upload, classify, results, history).
+
+Not yet done:
+- Webcam capture (live camera feed + frame capture) alongside file upload
+- Deployment (backend to Render/Railway-style hosting, frontend to Vercel)
+- Feature-map/Grad-CAM visualizations of what the CNN "sees"
+- Expanding beyond the current 10-class subset
+
+## Known gaps
+
+- `MODEL_CHOICES_SO_FAR.md` mentions a `foodClassifier/config.json` used by the notebook to configure `train()` calls — this file doesn't currently exist in the repo.
+- There's no `requirements.txt`/`pyproject.toml` yet; see the dependency list under [Getting started](#2-python-environment).
+
+See `MODEL_CHOICES_SO_FAR.md` for a more detailed running log of what was added, how, and why for each model/training/serving decision.
