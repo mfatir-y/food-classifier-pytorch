@@ -2,6 +2,10 @@
 
 A learning-focused project: train CNNs from scratch and via transfer learning in PyTorch on a 10-class subset of Food-101, serve the best model with a FastAPI backend, and classify food photos through a Next.js web app — upload or drag-and-drop an image, hit Classify, and get the top-5 predicted classes with confidence scores. Recent predictions are kept in a local history, stored in the browser.
 
+## Live demo
+
+Try the deployed app: <a href="https://food-classifier-pytorch.vercel.app/">Food Classifier</a>
+
 ## Classes
 
 The project trains on a 10-class subset of Food-101 (not all 101 classes, to keep training/debugging fast):
